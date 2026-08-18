@@ -1,1 +1,37 @@
 yarn test:run
+
+# Auditar dependencias solo si package.json o yarn.lock cambian en lo que se
+# está por pushear — evita que un CVE nuevo en una dependencia sin tocar
+# bloquee un push que no tiene nada que ver con eso.
+zero_sha="0000000000000000000000000000000000000000"
+deps_changed=false
+
+while read -r local_ref local_sha remote_ref remote_sha; do
+  if [ "$local_sha" = "$zero_sha" ]; then
+    continue # se está borrando la rama remota, nada que auditar
+  fi
+
+  if [ "$remote_sha" = "$zero_sha" ]; then
+    # Rama nueva en el remoto: no hay punto de comparación, revisamos el
+    # diff completo contra el primer commit para no saltarnos el audit.
+    range="$(git rev-list --max-parents=0 "$local_sha")..$local_sha"
+  else
+    range="$remote_sha..$local_sha"
+  fi
+
+  if git diff --name-only "$range" -- package.json yarn.lock | grep -q .; then
+    deps_changed=true
+  fi
+done
+
+if [ "$deps_changed" = true ]; then
+  echo "package.json/yarn.lock cambiaron — auditando dependencias de producción..."
+  yarn audit --groups dependencies || {
+    exit_code=$?
+    if [ "$exit_code" -ge 8 ]; then
+      echo "Vulnerabilidades ALTA o CRÍTICA en dependencias de producción. Push bloqueado."
+      exit $exit_code
+    fi
+    echo "Vulnerabilidades bajas/moderadas encontradas. Se permite continuar."
+  }
+fi

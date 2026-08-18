@@ -101,13 +101,15 @@ Usa `@/*` para referirte a `src/*` (configurado en `tsconfig.app.json` y `vite-t
 
 El proyecto usa Husky con tres hooks:
 
-| Hook         | Qué corre                                                                                                        | Cuándo                     |
-| ------------ | ---------------------------------------------------------------------------------------------------------------- | -------------------------- |
-| `pre-commit` | `lint-staged` (`eslint --fix` + `prettier --write` sobre los archivos en stage) y `tsc -b` (type-check completo) | Antes de crear el commit   |
-| `commit-msg` | `commitlint` contra el mensaje del commit                                                                        | Al escribir el mensaje     |
-| `pre-push`   | `yarn test:run` (toda la suite de Vitest)                                                                        | Antes de subir a un remoto |
+| Hook         | Qué corre                                                                                                               | Cuándo                     |
+| ------------ | ----------------------------------------------------------------------------------------------------------------------- | -------------------------- |
+| `pre-commit` | `lint-staged` (`eslint --fix` + `prettier --write` sobre los archivos en stage) y `tsc -b` (type-check completo)        | Antes de crear el commit   |
+| `commit-msg` | `commitlint` contra el mensaje del commit                                                                               | Al escribir el mensaje     |
+| `pre-push`   | `yarn test:run` + `yarn audit --groups dependencies` (solo si `package.json`/`yarn.lock` cambiaron en lo que se pushea) | Antes de subir a un remoto |
 
 Si un hook falla, corrige lo que reporta antes de reintentar (`git commit`/`git push`). No se recomienda saltarlos con `--no-verify` salvo un caso excepcional acordado con el equipo.
+
+El audit de `pre-push` solo bloquea el push si hay vulnerabilidades **alta o crítica** (moderadas/bajas solo generan una advertencia) — misma política que el gate de `docker-publish.yml` en CI. Es condicional a que `package.json`/`yarn.lock` cambien porque auditar contra una base de datos de CVEs que cambia con el tiempo no debería bloquear un commit/push que no toca dependencias.
 
 ### Mensajes de commit (Conventional Commits)
 
