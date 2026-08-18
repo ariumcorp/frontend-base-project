@@ -67,6 +67,8 @@ No todas las carpetas son obligatorias — un feature sin estado propio puede om
 
 Los tests viven junto al código que prueban (`Xxx.test.ts(x)` al lado del archivo, no en una carpeta `__tests__/` separada). Usa `renderWithProviders` (`src/test-utils/renderWithProviders.tsx`) para testear componentes que dependen de Redux, MUI theme o React Router.
 
+Los tests **no dependen del `.env` local** (que no está commiteado). Vite carga automáticamente `.env.test` en modo test, y ese archivo sí está commiteado con valores dummy — así los tests son herméticos y corren igual en tu máquina, en la de otro dev, o en CI. Si agregas una variable de entorno nueva a `.env`, agrégala también a `.env.test` con un valor seguro.
+
 ### Alias de imports
 
 Usa `@/*` para referirte a `src/*` (configurado en `tsconfig.app.json` y `vite-tsconfig-paths`). Evita rutas relativas largas (`../../../`) al cruzar de un feature a otro.
