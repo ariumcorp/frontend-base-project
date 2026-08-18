@@ -45,14 +45,19 @@ Esto funciona porque la configuración de ambiente (`VITE_URL_BACKEND`, etc.) **
 
 ### Pipeline (`.github/workflows/docker-publish.yml`)
 
-Se dispara en cada push a `main`/`qa`/`dev` y aplica el mismo patrón:
+**No se dispara directamente por push.** Está encadenado al workflow `CI` (`.github/workflows/ci.yml`) vía `workflow_run`: solo arranca cuando `CI` **terminó**, y además valida que haya terminado con `conclusion == 'success'` y que el push (no un PR) haya sido a `main`/`qa`/`dev`. Así nunca se construye ni publica una imagen de un commit que no pasó lint/test/build/format — antes ambos workflows corrían en paralelo y Docker podía publicar aunque CI fallara.
 
+Aplica el patrón "build once":
+
+- Hace checkout del commit exacto que `CI` validó (`github.event.workflow_run.head_sha`), no del HEAD actual de la rama
 - Calcula un **hash del contenido relevante al build** (no del commit) — si dos commits distintos tienen los mismos archivos (ej. un merge sin cambios), el hash es idéntico
 - Si ya existe una imagen para ese hash, **no recompila**: solo la promueve al tag de la rama (`docker buildx imagetools create`, un retag a nivel de registry, sin rebuild)
 - Si es contenido nuevo: build → auditoría de dependencias → escaneo de vulnerabilidades (Trivy) → push con SBOM/provenance → firma (Cosign, atada al digest — se hereda en cada promoción sin re-firmar)
 - Guard adicional: si el contenido es nuevo pero la versión de `package.json` ya fue usada por otro contenido, falla explícitamente en vez de sobrescribir el tag en silencio
 
 La imagen se publica en Docker Hub como `ariumdev/frontend-base-project` (tags: `sha-<hash>`, versión de `package.json`, nombre de rama, y `latest` solo desde `main`). Requiere el secret `DOCKER_HUB_TOKEN` configurado en el repo.
+
+**Nota sobre `workflow_run`**: GitHub lee la definición de este trigger desde la rama por defecto del repo (`main`), no desde la rama que dispara el push. Hasta que este archivo llegue a `main`, un push a `dev`/`qa` no encadenará correctamente — es una limitación de GitHub Actions, no un error de configuración.
 
 ## Arquitectura
 

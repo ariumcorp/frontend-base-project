@@ -1,22 +1,30 @@
 name: FRONTEND-BASE-PROJECT Build, Scan and Push
 
 on:
-  push:
-    branches:
-      - main
-      - qa
-      - dev
+  # Se encadena al CI en vez de escuchar "push" directamente: solo arranca
+  # cuando el workflow "CI" (lint/test/build/format) TERMINÓ, y más abajo se
+  # verifica que haya terminado con éxito. Así nunca se construye ni publica
+  # una imagen de un commit que no pasó los gates de calidad.
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
 
 # Cancela runs anteriores en la misma rama para ahorrar minutos y evitar
 # que un push antiguo sobreescriba uno más reciente en el registry.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.event.workflow_run.head_branch }}
   cancel-in-progress: true
 
 jobs:
   build-scan-push:
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    # Solo si el CI que lo disparó (1) fue por un push directo (no un PR) a
+    # una rama de despliegue, y (2) terminó exitosamente.
+    if: |
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.conclusion == 'success' &&
+      contains(fromJSON('["main", "qa", "dev"]'), github.event.workflow_run.head_branch)
 
     permissions:
       contents: read
@@ -27,6 +35,10 @@ jobs:
       - name: Checkout repository
         # actions/checkout v4.2.2
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          # Construir exactamente el commit que el CI validó, no el HEAD
+          # actual de la rama (que pudo avanzar mientras corría el CI).
+          ref: ${{ github.event.workflow_run.head_sha }}
 
       - name: Set up QEMU
         # docker/setup-qemu-action v3.6.0
@@ -216,13 +228,13 @@ jobs:
       - name: Promover imagen al tag de la rama
         run: |
           docker buildx imagetools create \
-            -t ariumdev/frontend-base-project:${{ github.ref_name }} \
+            -t ariumdev/frontend-base-project:${{ github.event.workflow_run.head_branch }} \
             ariumdev/frontend-base-project:sha-${{ steps.sha.outputs.short }}
 
       # 'latest' solo se mueve cuando la promoción llega a main —
       # nunca se actualiza por un push a dev o qa.
       - name: Promover a 'latest' (solo main)
-        if: github.ref_name == 'main'
+        if: github.event.workflow_run.head_branch == 'main'
         run: |
           docker buildx imagetools create \
             -t ariumdev/frontend-base-project:latest \
