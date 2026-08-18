@@ -1,47 +1,110 @@
 import type { ReduxStore } from "@/app/index";
-import { useAuth } from "@/utils";
-import axios, { AxiosError } from "axios";
-const axiosInstance = axios.create();
+import { getUrlBackend, useAuth, ApiRoutes } from "@/utils";
+import axios, {
+  AxiosError,
+  AxiosHeaders,
+  type InternalAxiosRequestConfig,
+} from "axios";
+import { logOut, setCredentials } from "@/features/auth/slice/auth.slice";
+
+const axiosInstance = axios.create({
+  baseURL: getUrlBackend(),
+});
+
+type RetryableRequestConfig = InternalAxiosRequestConfig & {
+  _retry?: boolean;
+};
+
+// Cola de peticiones que llegaron mientras se refrescaba el token,
+// para reintentarlas todas con el token nuevo en cuanto esté disponible.
+let isRefreshing = false;
+let pendingRequests: Array<(token: string) => void> = [];
+
+function subscribeTokenRefresh(callback: (token: string) => void) {
+  pendingRequests.push(callback);
+}
+
+function onTokenRefreshed(token: string) {
+  pendingRequests.forEach((callback) => callback(token));
+  pendingRequests = [];
+}
+
+async function refreshAccessToken(
+  store: ReduxStore,
+  refreshToken: string
+): Promise<string> {
+  const response = await axios.post<{
+    accessToken: string;
+    refreshToken: string;
+    message: string;
+  }>(`${getUrlBackend()}/${ApiRoutes.Security.RefreshToken}`, {
+    refreshToken,
+  });
+
+  store.dispatch(setCredentials(response.data));
+  return response.data.accessToken;
+}
 
 export function axiosAttachInterceptors(store: ReduxStore) {
   axiosInstance.interceptors.request.use(
-    async (config) => {
-      // 1. Importamos la store dinámicamente para evitar dependencias circulares.
-
+    (config: InternalAxiosRequestConfig) => {
       const { accessToken } = store.getState().authSlice;
-      const backendUrl = "";
-      // 2. Si no hay una URL de backend (ej: el usuario no ha iniciado sesión),
-      // la petición no puede continuar. Rechazamos la promesa con un error.
-      if (!backendUrl) {
-        return Promise.reject(
-          new Error("No se ha definido la URL del backend. Inicia sesión.")
-        );
-      }
 
-      // 3. Si hay un token, lo añadimos a la cabecera de autorización.
       if (accessToken && useAuth()) {
-        config.headers.Authorization = `Bearer ${accessToken}`;
+        config.headers.set("Authorization", `Bearer ${accessToken}`);
       }
-
-      // 4. Construimos la URL completa para esta petición específica.
-      // Esto combina la URL base del estado de Redux con el endpoint de la petición.
-      // ej: 'https://mi-backend.com/api' + '/products'
-      config.url = backendUrl + config.url;
 
       return config;
     },
-    (error) => {
-      // Para errores en la configuración de la petición
-      return Promise.reject(error);
-    }
+    (error) => Promise.reject(error)
   );
 
   axiosInstance.interceptors.response.use(
-    (response) => {
-      return response;
-    },
-    (error: AxiosError) => {
-      return Promise.reject(error);
+    (response) => response,
+    async (error: AxiosError) => {
+      const originalRequest = error.config as RetryableRequestConfig;
+
+      if (error.response?.status !== 401 || originalRequest._retry) {
+        return Promise.reject(error);
+      }
+
+      const { refreshToken } = store.getState().authSlice;
+      if (!refreshToken) {
+        store.dispatch(logOut());
+        return Promise.reject(error);
+      }
+
+      originalRequest._retry = true;
+
+      if (!originalRequest.headers) {
+        originalRequest.headers = new AxiosHeaders();
+      }
+
+      if (isRefreshing) {
+        return new Promise((resolve) => {
+          subscribeTokenRefresh((token) => {
+            originalRequest.headers.set("Authorization", `Bearer ${token}`);
+            resolve(axiosInstance(originalRequest));
+          });
+        });
+      }
+
+      isRefreshing = true;
+      try {
+        const newAccessToken = await refreshAccessToken(store, refreshToken);
+        onTokenRefreshed(newAccessToken);
+        originalRequest.headers.set(
+          "Authorization",
+          `Bearer ${newAccessToken}`
+        );
+        return axiosInstance(originalRequest);
+      } catch (refreshError) {
+        pendingRequests = [];
+        store.dispatch(logOut());
+        return Promise.reject(refreshError);
+      } finally {
+        isRefreshing = false;
+      }
     }
   );
 }

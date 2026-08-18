@@ -1,6 +1,7 @@
 export const ApiRoutes = {
   Security: {
     AuthenticateUser: "auth",
+    RefreshToken: "auth/refresh",
     getTranslation: "identity-provider/internationalization/filtered",
     getUserInfo: "userInfo",
     getUserRole: "identity-provider/userRole",
