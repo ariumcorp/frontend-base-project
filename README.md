@@ -30,6 +30,30 @@ Proyecto base de frontend multiplataforma (web, Android, iOS y desktop). Sirve c
 | `yarn cap:sync`      | Build + sync de Capacitor               |
 | `yarn tauri:dev`     | Corre la app en modo desktop (Tauri)    |
 
+## Docker: build once, deploy many
+
+El proyecto sigue el principio **"build once, deploy many"**: se compila **una sola imagen Docker genérica** (`Dockerfile`) y esa misma imagen se promueve tal cual a dev, qa y producción — nunca se recompila para "apuntar" a otro ambiente.
+
+Esto funciona porque la configuración de ambiente (`VITE_URL_BACKEND`, etc.) **no se hornea en el build**, se inyecta en **runtime**:
+
+1. Al arrancar el contenedor, `env.sh` lee las variables de entorno reales (prefijo `VITE_`) y genera `env-config.js`, que expone `window._env_`.
+2. `index.html` carga `env-config.js` **antes** que el bundle de la app.
+3. `src/lib/env/envService.ts` (`getEnv()`) lee primero `window._env_`; si no existe (desarrollo local con `yarn start`), cae a `import.meta.env` (el `.env` local de Vite).
+4. Todo lo que antes leía `import.meta.env.VITE_*` directamente (`src/utils/index.ts`: `getKeyEncrypt`, `isProd`, `getUrlBackend`, `useAuth`) pasa por `getEnv()`.
+
+**Importante para quien añada una variable de entorno nueva**: si se necesita en runtime (no solo en build-time), debe leerse vía `getEnv("VITE_...")`, nunca con `import.meta.env.VITE_...` directo — de lo contrario quedaría fija en el bundle compilado y el build-once dejaría de servir para esa variable.
+
+### Pipeline (`.github/workflows/docker-publish.yml`)
+
+Se dispara en cada push a `main`/`qa`/`dev` y aplica el mismo patrón:
+
+- Calcula un **hash del contenido relevante al build** (no del commit) — si dos commits distintos tienen los mismos archivos (ej. un merge sin cambios), el hash es idéntico
+- Si ya existe una imagen para ese hash, **no recompila**: solo la promueve al tag de la rama (`docker buildx imagetools create`, un retag a nivel de registry, sin rebuild)
+- Si es contenido nuevo: build → auditoría de dependencias → escaneo de vulnerabilidades (Trivy) → push con SBOM/provenance → firma (Cosign, atada al digest — se hereda en cada promoción sin re-firmar)
+- Guard adicional: si el contenido es nuevo pero la versión de `package.json` ya fue usada por otro contenido, falla explícitamente en vez de sobrescribir el tag en silencio
+
+La imagen se publica en Docker Hub como `ariumdev/frontend-base-project` (tags: `sha-<hash>`, versión de `package.json`, nombre de rama, y `latest` solo desde `main`). Requiere el secret `DOCKER_HUB_TOKEN` configurado en el repo.
+
 ## Arquitectura
 
 El proyecto sigue una arquitectura **feature-based**: la lógica de negocio vive en `src/features/<nombre>/`, no en carpetas transversales por tipo de archivo. Cada feature es lo más autocontenida posible.

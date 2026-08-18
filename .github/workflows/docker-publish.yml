@@ -1,0 +1,229 @@
+name: FRONTEND-BASE-PROJECT Build, Scan and Push
+
+on:
+  push:
+    branches:
+      - main
+      - qa
+      - dev
+
+# Cancela runs anteriores en la misma rama para ahorrar minutos y evitar
+# que un push antiguo sobreescriba uno más reciente en el registry.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-scan-push:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    permissions:
+      contents: read
+      packages: write
+      id-token: write # requerido por Cosign keyless (OIDC)
+
+    steps:
+      - name: Checkout repository
+        # actions/checkout v4.2.2
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+
+      - name: Set up QEMU
+        # docker/setup-qemu-action v3.6.0
+        uses: docker/setup-qemu-action@29109295f81e9208d7d86ff1c6c12d2833863392
+
+      - name: Set up Docker Buildx
+        # docker/setup-buildx-action v3.10.0
+        uses: docker/setup-buildx-action@b5ca514318bd6ebac0fb2aedd5d36ec1b5c232a2
+
+      - name: Login to Docker Hub
+        # docker/login-action v3.4.0
+        uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772
+        with:
+          username: ariumdev
+          password: ${{ secrets.DOCKER_HUB_TOKEN }}
+
+      - name: Extraer versión de package.json
+        id: pkg
+        run: echo "version=$(node -p "require('./package.json').version")" >> $GITHUB_OUTPUT
+
+      # Hash del CONTENIDO relevante al build (no del commit). A diferencia de
+      # `git rev-parse HEAD`, esto no cambia con merge commits — si dos commits
+      # distintos tienen exactamente los mismos archivos (ej. un merge dev->qa
+      # sin cambios nuevos), el hash da idéntico y no se dispara un rebuild
+      # innecesario ni el guard de versión duplicada.
+      - name: Calcular hash de contenido (identidad del build, no del commit)
+        id: sha
+        run: |
+          CONTENT_HASH=$(git ls-tree -r HEAD -- \
+            Dockerfile package.json yarn.lock tsconfig.json tsconfig.app.json \
+            tsconfig.node.json vite.config.ts index.html src public \
+            default.conf env.sh \
+            | sha256sum | cut -c1-12)
+          echo "short=$CONTENT_HASH" >> $GITHUB_OUTPUT
+
+      # --- BUILD ONCE: ¿esta imagen ya existe? ---
+      # Si el contenido relevante ya se compiló antes (por ejemplo, se compiló al
+      # pushear a dev, y ahora ese mismo contenido llega a qa vía merge sin cambios
+      # nuevos, aunque sea un commit de merge con SHA distinto), NO se vuelve a
+      # compilar — solo se promueve la imagen ya construida y ya escaneada.
+      - name: Verificar si ya existe imagen para este contenido
+        id: check
+        run: |
+          if docker manifest inspect ariumdev/frontend-base-project:sha-${{ steps.sha.outputs.short }} > /dev/null 2>&1; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+            echo "::notice::Imagen sha-${{ steps.sha.outputs.short }} ya existe — se promueve sin recompilar."
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+          fi
+
+      # --- Guard: evita que el tag de versión quede sobrescrito por otro contenido ---
+      # Si este contenido es NUEVO (nunca se compiló) pero el tag de "version" ya
+      # existe en el registry, significa que un contenido anterior distinto ya usó
+      # esa misma versión — alguien olvidó subirla en package.json. Fallamos con un
+      # mensaje claro en vez de pisar el tag silenciosamente.
+      - name: Verificar que la versión no esté duplicada con otro contenido
+        if: steps.check.outputs.exists == 'false'
+        run: |
+          if docker manifest inspect ariumdev/frontend-base-project:${{ steps.pkg.outputs.version }} > /dev/null 2>&1; then
+            echo "::error::La versión ${{ steps.pkg.outputs.version }} ya existe en el registry, pero este es contenido nuevo (sha-${{ steps.sha.outputs.short }}). Sube la versión en package.json antes de continuar."
+            exit 1
+          fi
+
+      # ============================================================
+      # A partir de aquí, todos los pasos de build solo corren si
+      # el contenido es realmente nuevo (steps.check.outputs.exists == 'false')
+      # ============================================================
+
+      - name: Setup Node.js 22
+        if: steps.check.outputs.exists == 'false'
+        # actions/setup-node v4.4.0
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: "22"
+          cache: "yarn"
+
+      - name: Instalar dependencias
+        if: steps.check.outputs.exists == 'false'
+        run: yarn install --frozen-lockfile --network-timeout 300000
+
+      - name: Auditoría de dependencias de producción
+        if: steps.check.outputs.exists == 'false'
+        run: |
+          # Solo auditamos dependencias de producción; devDependencies no van a la imagen final.
+          yarn audit --groups dependencies || {
+            EXIT_CODE=$?
+            if [ $EXIT_CODE -ge 8 ]; then
+              echo "::error::Vulnerabilidades ALTA o CRÍTICA en dependencias de producción."
+              exit $EXIT_CODE
+            fi
+            echo "::warning::Vulnerabilidades bajas/moderadas encontradas. Se permite continuar."
+          }
+
+      - name: Metadata Docker
+        if: steps.check.outputs.exists == 'false'
+        id: meta
+        # docker/metadata-action v5.6.1
+        uses: docker/metadata-action@369eb591f429131d6889c46b94e711f089e6ca96
+        with:
+          images: ariumdev/frontend-base-project
+          tags: |
+            # Tag inmutable por contenido — es la identidad real de esta build.
+            type=raw,value=sha-${{ steps.sha.outputs.short }}
+            # Versión semántica, siempre (no depende de la rama: es la misma
+            # imagen la que luego se promueve a dev/qa/main).
+            type=raw,value=${{ steps.pkg.outputs.version }}
+
+      # --- 1. CONSTRUYE Y CARGA LOCALMENTE (solo si es contenido nuevo) ---
+      - name: Build y carga local
+        if: steps.check.outputs.exists == 'false'
+        id: build
+        # docker/build-push-action v6.18.0
+        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83
+        with:
+          context: .
+          load: true
+          no-cache: true
+          pull: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-to: type=gha,mode=max
+
+      # --- 2. ESCANEO DE VULNERABILIDADES (solo si es contenido nuevo) ---
+      # Se evita usar aquasecurity/trivy-action (fue comprometida en marzo 2026 — 75 tags hijacked).
+      # Instalamos trivy directamente desde el release oficial verificando el checksum SHA256.
+      - name: Instalar Trivy
+        if: steps.check.outputs.exists == 'false'
+        run: |
+          TRIVY_VERSION="0.70.0"
+          TRIVY_DEB="trivy_${TRIVY_VERSION}_Linux-64bit.deb"
+          BASE_URL="https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}"
+
+          curl -sSfL "${BASE_URL}/${TRIVY_DEB}"              -o "$TRIVY_DEB"
+          curl -sSfL "${BASE_URL}/trivy_${TRIVY_VERSION}_checksums.txt" -o checksums.txt
+
+          # Verificar integridad: extraer solo la línea del .deb y validar
+          grep "${TRIVY_DEB}" checksums.txt | sha256sum --check -
+          sudo dpkg -i "$TRIVY_DEB"
+          rm -f "$TRIVY_DEB" checksums.txt
+
+      - name: Escaneo de vulnerabilidades con Trivy
+        if: steps.check.outputs.exists == 'false'
+        run: |
+          trivy image \
+            --exit-code 1 \
+            --severity CRITICAL,HIGH \
+            --ignore-unfixed \
+            --format table \
+            "${{ steps.build.outputs.imageid }}"
+
+      # --- 3. PUSH CON SBOM Y PROVENANCE (solo si es contenido nuevo) ---
+      # Se reconstruye usando la caché de GHA — es instantáneo, no recompila nada.
+      - name: Push con attestations (SBOM + Provenance)
+        if: steps.check.outputs.exists == 'false'
+        id: push
+        # docker/build-push-action v6.18.0
+        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          sbom: true
+          provenance: mode=max
+          no-cache-filters: nginxinc/nginx-unprivileged
+
+      # --- 4. FIRMA CON COSIGN (solo si es contenido nuevo) ---
+      # La firma queda atada al digest, no al tag — todas las promociones
+      # posteriores (dev/qa/main) heredan esta misma firma sin re-firmar.
+      - name: Instalar Cosign
+        if: steps.check.outputs.exists == 'false'
+        # sigstore/cosign-installer v3.8.2
+        uses: sigstore/cosign-installer@3454372f43399081ed03b604cb2d021dabca52bb
+
+      - name: Firmar imagen con Cosign (keyless OIDC)
+        if: steps.check.outputs.exists == 'false'
+        run: |
+          cosign sign --yes \
+            docker.io/ariumdev/frontend-base-project@${{ steps.push.outputs.digest }}
+
+      # ============================================================
+      # PROMOCIÓN — corre SIEMPRE, sea que acabamos de compilar o que
+      # la imagen ya existía de una promoción anterior. Nunca recompila,
+      # solo copia el mismo digest a un tag nuevo.
+      # ============================================================
+      - name: Promover imagen al tag de la rama
+        run: |
+          docker buildx imagetools create \
+            -t ariumdev/frontend-base-project:${{ github.ref_name }} \
+            ariumdev/frontend-base-project:sha-${{ steps.sha.outputs.short }}
+
+      # 'latest' solo se mueve cuando la promoción llega a main —
+      # nunca se actualiza por un push a dev o qa.
+      - name: Promover a 'latest' (solo main)
+        if: github.ref_name == 'main'
+        run: |
+          docker buildx imagetools create \
+            -t ariumdev/frontend-base-project:latest \
+            ariumdev/frontend-base-project:sha-${{ steps.sha.outputs.short }}

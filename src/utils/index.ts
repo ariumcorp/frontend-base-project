@@ -1,18 +1,15 @@
-const reduxPersistEncrypt = import.meta.env.VITE_REDUX_PERSIST_ENCRYPT;
-const valueIsProd = import.meta.env.VITE_IS_PROD;
-const urlBackend = import.meta.env.VITE_URL_BACKEND;
-const valueUseAuth = import.meta.env.VITE_USE_AUTH;
+import { getEnv } from "@/lib/env/envService";
 
 export const getKeyEncrypt = (): string => {
-  return reduxPersistEncrypt;
+  return getEnv("VITE_REDUX_PERSIST_ENCRYPT");
 };
 
 export const isProd = (): boolean => {
-  return valueIsProd.toLowerCase() === "true";
+  return getEnv("VITE_IS_PROD").toLowerCase() === "true";
 };
 
 export const getUrlBackend = (): string => {
-  return urlBackend;
+  return getEnv("VITE_URL_BACKEND");
 };
 
 export const hasInvisible = (s: string) => /\p{Cf}/u.test(s);
@@ -27,7 +24,7 @@ export const sleep = (ms: number) =>
   new Promise((resolve) => setTimeout(resolve, ms));
 
 export const useAuth = (): boolean => {
-  return valueUseAuth.toLowerCase() === "true";
+  return getEnv("VITE_USE_AUTH").toLowerCase() === "true";
 };
 
 export * from "./access-transform";
