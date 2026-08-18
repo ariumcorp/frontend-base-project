@@ -1,10 +1,11 @@
 import type { PropsWithChildren, ReactElement } from "react";
-import { configureStore, combineReducers } from "@reduxjs/toolkit";
 import { Provider } from "react-redux";
 import { MemoryRouter } from "react-router-dom";
-import { ThemeProvider, createTheme } from "@mui/material/styles";
 import CssBaseline from "@mui/material/CssBaseline";
+import { createTheme, ThemeProvider } from "@mui/material/styles";
+import { combineReducers, configureStore } from "@reduxjs/toolkit";
 import { render, type RenderOptions } from "@testing-library/react";
+
 import { reducer as rootReducerMap } from "@/app/rootReducer";
 
 const rootReducer = combineReducers(rootReducerMap);
@@ -32,7 +33,7 @@ export function renderWithProviders(
     store = createTestStore(preloadedState),
     route = "/",
     ...renderOptions
-  }: ExtendedRenderOptions = {}
+  }: ExtendedRenderOptions = {},
 ) {
   const theme = createTheme();
 

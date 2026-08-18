@@ -1,10 +1,11 @@
 import { useMemo } from "react";
-import { useAppSelector } from "./app/hooks";
-import { AppRouter } from "./router/AppRouter";
-import { createTheme, ThemeProvider } from "@mui/material/styles";
 import CssBaseline from "@mui/material/CssBaseline";
+import { createTheme, ThemeProvider } from "@mui/material/styles";
+
+import { useAppSelector } from "./app/hooks";
 import { GlobalAlert } from "./features/alerts/components/GlobalAlert";
 import { GlobalLoading } from "./features/loading/components/GlobalLoading";
+import { AppRouter } from "./router/AppRouter";
 
 function App() {
   const themeMode = useAppSelector((state) => state.themeSlice.mode);
@@ -16,7 +17,7 @@ function App() {
           mode: themeMode,
         },
       }),
-    [themeMode]
+    [themeMode],
   );
   return (
     <ThemeProvider theme={theme}>

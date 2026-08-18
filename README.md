@@ -73,4 +73,38 @@ Usa `@/*` para referirte a `src/*` (configurado en `tsconfig.app.json` y `vite-t
 
 ## Git hooks
 
-El proyecto usa Husky + lint-staged: en cada commit se corre `eslint --fix` y `prettier --write` sobre los archivos en stage. Si el hook falla, corrige el error reportado antes de reintentar el commit.
+El proyecto usa Husky con tres hooks:
+
+| Hook         | Qué corre                                                                                                        | Cuándo                     |
+| ------------ | ---------------------------------------------------------------------------------------------------------------- | -------------------------- |
+| `pre-commit` | `lint-staged` (`eslint --fix` + `prettier --write` sobre los archivos en stage) y `tsc -b` (type-check completo) | Antes de crear el commit   |
+| `commit-msg` | `commitlint` contra el mensaje del commit                                                                        | Al escribir el mensaje     |
+| `pre-push`   | `yarn test:run` (toda la suite de Vitest)                                                                        | Antes de subir a un remoto |
+
+Si un hook falla, corrige lo que reporta antes de reintentar (`git commit`/`git push`). No se recomienda saltarlos con `--no-verify` salvo un caso excepcional acordado con el equipo.
+
+### Mensajes de commit (Conventional Commits)
+
+`commit-msg` exige el formato [Conventional Commits](https://www.conventionalcommits.org/): `<tipo>(<alcance opcional>): <descripción>`.
+
+Tipos más usados: `feat`, `fix`, `docs`, `style`, `refactor`, `test`, `chore`, `perf`, `build`, `ci`.
+
+```
+feat(auth): agregar refresh-token con cola de reintentos
+fix(alerts): evitar duplicados en el snackbar
+```
+
+## Historial de modernización
+
+Esta plantilla se actualizó tomando como referencia un proyecto hermano más maduro (`admin-center`) con el mismo stack. Resumen de lo agregado, para que quien retome el proyecto entienda el porqué de ciertas decisiones:
+
+- **Testing**: Vitest + Testing Library + jsdom. Helper [`renderWithProviders`](src/test-utils/renderWithProviders.tsx) para testear componentes con Redux/MUI/Router. Los tests viven junto al código (`Xxx.test.ts(x)`), no en `__tests__/`.
+- **Refresh-token**: [`src/lib/api/axios/Axios.ts`](src/lib/api/axios/Axios.ts) implementa cola de reintentos en 401 (patrón tomado de `admin-center`). Importante: el reintento de la petición original vive **fuera** del `try/catch` del refresh — si el reintento falla por una razón no relacionada con auth, no debe disparar `logOut()`.
+- **`src/vite-env.d.ts`**: no existía. Sin este archivo, `import.meta.env.VITE_*` se tipaba como `any` en todo el proyecto y ocultaba errores reales de tipos en cascada.
+- **ESLint**: config con `strictTypeChecked` + `stylisticTypeChecked` (type-aware), `eslint-plugin-react`, `jsx-a11y`, orden de imports automático (`simple-import-sort`), `unused-imports`, y reglas específicas de Vitest/Testing Library para archivos `*.test.*`. Es la config más estricta disponible en `typescript-eslint`; si se vuelve demasiado ruidosa para nuevas features, la alternativa más relajada es `recommendedTypeChecked` (sin las reglas puramente de estilo).
+- **`tsconfig.app.json` / `tsconfig.node.json`**: `noUncheckedIndexedAccess: true` (accesos a arrays/objetos por índice devuelven `T | undefined`) y `composite: true` (requisito formal de `tsc -b` con project references).
+- **Prettier + Husky + lint-staged + commitlint**: ver sección [Git hooks](#git-hooks) arriba.
+- **CI** ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)): gates de `commitlint`, `format:check`, `lint`, `test:run` y `build` en cada PR/push a `main`/`dev`.
+- **Convención de features**: se unificó `models/` (plural) en todos los features — existía una carpeta `access/model` (singular) que se renombró para no repetir esa inconsistencia.
+
+Si algo de esto genera fricción real en el día a día (por ejemplo, `tsc -b` en el pre-commit se siente lento, o `strictTypeChecked` es muy ruidoso para cierto tipo de código), es válido relajarlo — pero hacerlo de forma consciente y documentada aquí, no revirtiéndolo en silencio.

@@ -1,15 +1,17 @@
+import type { Reducer, UnknownAction } from "@reduxjs/toolkit";
+
 import { alertReducer, initialStateAlerts } from "@/features/alerts";
 import { authReducer, initialStateAuth } from "@/features/auth";
 import { languageReducer } from "@/features/language";
 import { initialStateLoading, loadingReducer } from "@/features/loading";
 import { themeReducer } from "@/features/theme";
-import type { AnyAction, Reducer } from "@reduxjs/toolkit";
+
 import { apiSlice } from "./apiSlice";
 import { resetApp } from "./appActions";
 
 const makeResettable =
   <S>(reducer: Reducer<S>, initial: S) =>
-  (state: S | undefined, action: AnyAction): S => {
+  (state: S | undefined, action: UnknownAction): S => {
     if (resetApp.match(action)) return initial;
     return reducer(state, action);
   };

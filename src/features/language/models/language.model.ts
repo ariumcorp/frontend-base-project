@@ -1,5 +1,6 @@
-import { LanguageCode } from "@/utils";
 import { z } from "zod";
+
+import { LanguageCode } from "@/utils";
 
 export const languageSchema = z.object({
   available: z.array(z.string()),

@@ -1,6 +1,8 @@
 import { createSlice, type PayloadAction } from "@reduxjs/toolkit";
-import { initialStateAlerts, type AlertItem } from "../models/alert.model";
+
 import { Slice } from "@/utils";
+
+import { type AlertItem, initialStateAlerts } from "../models/alert.model";
 
 export const alertSlice = createSlice({
   name: Slice.Alert,

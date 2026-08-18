@@ -1,8 +1,10 @@
 import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
+
 import { renderWithProviders } from "@/test-utils/renderWithProviders";
 import { Severity } from "@/utils";
+
 import { GlobalAlert } from "./GlobalAlert";
 
 describe("GlobalAlert", () => {

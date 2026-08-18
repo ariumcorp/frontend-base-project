@@ -2,6 +2,7 @@ import type { Middleware } from "@reduxjs/toolkit";
 import { createLogger } from "redux-logger";
 
 import { isProd } from "@/utils";
+
 import { apiSlice } from "./apiSlice";
 
 const middlewares: Middleware[] = [];
@@ -21,7 +22,7 @@ if (!isProd()) {
         error: () => "#ff0005",
       },
       predicate: () => typeof window !== "undefined",
-    })
+    }),
   );
 }
 

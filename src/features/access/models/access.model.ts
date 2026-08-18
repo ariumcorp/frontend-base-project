@@ -1,5 +1,6 @@
-import { AccessType } from "@/utils";
 import { z } from "zod";
+
+import { AccessType } from "@/utils";
 
 export const ActionPermissionSchema = z.object({
   code: z.string(),
@@ -22,7 +23,7 @@ export const accessSchema = z.object({
   applicationId: z.number(),
   applicationCode: z.string(),
   resourceTypeId: z.number(),
-  resourceTypeCode: z.nativeEnum(AccessType),
+  resourceTypeCode: z.enum(AccessType),
   code: z.string(),
   parentId: z.number().nullable(),
   parentCode: z.string().nullable(),
@@ -31,9 +32,9 @@ export const accessSchema = z.object({
   path: z.string(),
   icon: z.string(),
   order: z.number(),
-  createdDatetime: z.string().datetime(),
+  createdDatetime: z.iso.datetime(),
   createdBy: z.string(),
-  updatedDatetime: z.string().datetime(),
+  updatedDatetime: z.iso.datetime(),
   updatedBy: z.string(),
   pathsParent: z.array(z.string()),
   pathComplete: z.string(),

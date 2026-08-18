@@ -1,11 +1,8 @@
+import axios, { AxiosError, type InternalAxiosRequestConfig } from "axios";
+
 import type { ReduxStore } from "@/app/index";
-import { getUrlBackend, useAuth, ApiRoutes } from "@/utils";
-import axios, {
-  AxiosError,
-  AxiosHeaders,
-  type InternalAxiosRequestConfig,
-} from "axios";
 import { logOut, setCredentials } from "@/features/auth/slice/auth.slice";
+import { ApiRoutes, getUrlBackend, useAuth } from "@/utils";
 
 const axiosInstance = axios.create({
   baseURL: getUrlBackend(),
@@ -18,20 +15,22 @@ type RetryableRequestConfig = InternalAxiosRequestConfig & {
 // Cola de peticiones que llegaron mientras se refrescaba el token,
 // para reintentarlas todas con el token nuevo en cuanto esté disponible.
 let isRefreshing = false;
-let pendingRequests: Array<(token: string) => void> = [];
+let pendingRequests: ((token: string) => void)[] = [];
 
 function subscribeTokenRefresh(callback: (token: string) => void) {
   pendingRequests.push(callback);
 }
 
 function onTokenRefreshed(token: string) {
-  pendingRequests.forEach((callback) => callback(token));
+  pendingRequests.forEach((callback) => {
+    callback(token);
+  });
   pendingRequests = [];
 }
 
 async function refreshAccessToken(
   store: ReduxStore,
-  refreshToken: string
+  refreshToken: string,
 ): Promise<string> {
   const response = await axios.post<{
     accessToken: string;
@@ -56,7 +55,7 @@ export function axiosAttachInterceptors(store: ReduxStore) {
 
       return config;
     },
-    (error) => Promise.reject(error)
+    (error: AxiosError) => Promise.reject(error),
   );
 
   axiosInstance.interceptors.response.use(
@@ -76,36 +75,34 @@ export function axiosAttachInterceptors(store: ReduxStore) {
 
       originalRequest._retry = true;
 
-      if (!originalRequest.headers) {
-        originalRequest.headers = new AxiosHeaders();
-      }
-
       if (isRefreshing) {
-        return new Promise((resolve) => {
-          subscribeTokenRefresh((token) => {
-            originalRequest.headers.set("Authorization", `Bearer ${token}`);
-            resolve(axiosInstance(originalRequest));
-          });
+        const token = await new Promise<string>((resolve) => {
+          subscribeTokenRefresh(resolve);
         });
+        originalRequest.headers.set("Authorization", `Bearer ${token}`);
+        return axiosInstance(originalRequest);
       }
 
       isRefreshing = true;
+      let newAccessToken: string;
       try {
-        const newAccessToken = await refreshAccessToken(store, refreshToken);
-        onTokenRefreshed(newAccessToken);
-        originalRequest.headers.set(
-          "Authorization",
-          `Bearer ${newAccessToken}`
-        );
-        return axiosInstance(originalRequest);
+        newAccessToken = await refreshAccessToken(store, refreshToken);
       } catch (refreshError) {
         pendingRequests = [];
         store.dispatch(logOut());
-        return Promise.reject(refreshError);
+        return await Promise.reject(
+          refreshError instanceof Error
+            ? refreshError
+            : new Error(String(refreshError)),
+        );
       } finally {
         isRefreshing = false;
       }
-    }
+
+      onTokenRefreshed(newAccessToken);
+      originalRequest.headers.set("Authorization", `Bearer ${newAccessToken}`);
+      return axiosInstance(originalRequest);
+    },
   );
 }
 

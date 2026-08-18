@@ -1,15 +1,22 @@
-import { TolgeeProvider } from "@tolgee/react";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { Provider } from "react-redux";
+import { TolgeeProvider } from "@tolgee/react";
 import { PersistGate } from "redux-persist/integration/react";
-import App from "./App.tsx";
+
 import { reduxPersistor, reduxStore } from "./app/store.ts";
 import { CiercularProgress } from "./components/CircularProgress.tsx";
-import "./index.css";
 import { tolgee } from "./lib/tolgee.ts";
+import App from "./App.tsx";
 
-createRoot(document.getElementById("root")!).render(
+import "./index.css";
+
+const rootElement = document.getElementById("root");
+if (!rootElement) {
+  throw new Error('No se encontró el elemento con id "root" en index.html.');
+}
+
+createRoot(rootElement).render(
   <StrictMode>
     <Provider store={reduxStore}>
       <PersistGate loading={null} persistor={reduxPersistor}>
@@ -18,5 +25,5 @@ createRoot(document.getElementById("root")!).render(
         </TolgeeProvider>
       </PersistGate>
     </Provider>
-  </StrictMode>
+  </StrictMode>,
 );

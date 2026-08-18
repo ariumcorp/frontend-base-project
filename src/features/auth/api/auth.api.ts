@@ -1,9 +1,10 @@
 import type { ApiClient } from "@/lib/api/ApiClient";
 import type { ResponseApi } from "@/models";
 import { ApiRoutes } from "@/utils";
+
 import {
-  authStateSchema,
   type Auth,
+  authStateSchema,
   type LoginRequest,
 } from "../models/auth.model";
 
@@ -12,7 +13,7 @@ export const makeAuthApi = (apiClient: ApiClient) => {
     async login(payload: LoginRequest): Promise<Auth> {
       const response = await apiClient.post<ResponseApi<Auth>, LoginRequest>(
         ApiRoutes.Security.AuthenticateUser,
-        payload
+        payload,
       );
       const validatedData = authStateSchema.parse(response.resource);
 

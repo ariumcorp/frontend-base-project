@@ -1,6 +1,8 @@
-import { Alert, Snackbar } from "@mui/material";
 import { useCallback, useMemo } from "react";
+import { Alert, Snackbar } from "@mui/material";
+
 import { useAppDispatch, useAppSelector } from "@/app/";
+
 import { alertSlice } from "../slice/alert.slice";
 
 const DEFAULT_DURATION = 4000;
@@ -12,7 +14,6 @@ export const GlobalAlert = () => {
 
   const autoHideDuration = useMemo(() => {
     if (!current) return undefined;
-    if (current.duration === null) return undefined;
     return current.duration ?? DEFAULT_DURATION;
   }, [current]);
 

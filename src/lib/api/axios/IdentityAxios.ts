@@ -1,10 +1,7 @@
+import axios, { AxiosError, type InternalAxiosRequestConfig } from "axios";
+
 import type { ReduxStore } from "@/app/index";
 import { getUrlBackend } from "@/utils";
-import axios, {
-  AxiosError,
-  AxiosHeaders,
-  type InternalAxiosRequestConfig,
-} from "axios";
 //import type { ReduxStore } from "../../../app/store";
 
 const urlBackend = getUrlBackend();
@@ -24,22 +21,11 @@ export function identityAxiosAttachInterceptors(store: ReduxStore) {
       const accessToken = authSlice.accessToken;
 
       if (accessToken) {
-        if (!config.headers) {
-          config.headers = new AxiosHeaders();
-        } else if (!config.headers.set) {
-          config.headers = new AxiosHeaders(config.headers);
-        }
-        (config.headers as AxiosHeaders).set(
-          "Content-Type",
-          "application/json"
-        );
-        (config.headers as AxiosHeaders).set(
-          "Authorization",
-          `Bearer ${accessToken}`
-        );
+        config.headers.set("Content-Type", "application/json");
+        config.headers.set("Authorization", `Bearer ${accessToken}`);
       }
       return config;
-    }
+    },
   );
 
   identityAxios.interceptors.response.use(
@@ -48,7 +34,7 @@ export function identityAxiosAttachInterceptors(store: ReduxStore) {
     },
     (error: AxiosError) => {
       return Promise.reject(error);
-    }
+    },
   );
 }
 

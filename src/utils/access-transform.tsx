@@ -1,13 +1,15 @@
+import type { RouteObject } from "react-router-dom";
+
 import type { Access } from "@/features/access";
 import { routeRegistry } from "@/router/routeRegistry";
 import { UnknownRoute } from "@/router/unknown-route";
-import type { RouteObject } from "react-router-dom";
+
 import { AccessType } from "./enum";
 
 const findChildrenCurrentAccess = (
   currentAccess: Access,
   allAccess: Access[],
-  pathParent: string[] = []
+  pathParent: string[] = [],
 ): Access => {
   const result: Access[] = [];
   const childrens = allAccess

@@ -1,6 +1,6 @@
 import {
-  configureStore,
   type Action,
+  configureStore,
   type ThunkAction,
 } from "@reduxjs/toolkit";
 // import {
@@ -10,17 +10,20 @@ import {
 // } from "react-redux";
 import { combineReducers } from "redux";
 import { persistReducer, persistStore } from "redux-persist";
-import { encryptTransform } from "redux-persist-transform-encrypt";
 import storage from "redux-persist/lib/storage";
+import { encryptTransform } from "redux-persist-transform-encrypt";
+
+import { api, identityApi } from "@/lib/api";
+
 //import { dbService } from "services";
 //import { attachInterceptors } from "../api/api-config";
 //import { identityAxiosAttachInterceptors } from "@/lib/api/axios/IdentityAxios";
 import { getKeyEncrypt, isProd } from "../utils/";
+
 import { resetApp } from "./appActions";
 import { middlewares } from "./middleware";
 import { reduxPersistWhiteList } from "./reduxPersistWhitelist";
 import { reducer } from "./rootReducer";
-import { api, identityApi } from "@/lib/api";
 
 //import { fetchAllProcessedSurveys, fetchAllSurveys } from "./thunk";
 
@@ -52,7 +55,7 @@ const persistConfig = {
 //const persistedReducer = persistReducer(persistConfig, rootReducer);
 const persistedReducer = persistReducer<ReturnType<typeof rootReducerBase>>(
   persistConfig,
-  rootReducerBase
+  rootReducerBase,
 );
 
 export const reduxStore = configureStore({
@@ -104,7 +107,7 @@ export type ReduxThunkAction<ReturnType = void> = ThunkAction<
 export const reduxPersistor = persistStore(reduxStore);
 
 // ⬇️ función de utilidad para cerrar sesión limpiamente
-export const logoutAndReset = () => async (dispatch: ReduxDispatch) => {
+export const logoutAndReset = () => (dispatch: ReduxDispatch) => {
   // reduxPersistor.pause();
   // await reduxPersistor.flush();
   // await reduxPersistor.purge();

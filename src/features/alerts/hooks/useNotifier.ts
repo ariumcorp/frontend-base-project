@@ -1,14 +1,16 @@
 import { useCallback, useMemo } from "react";
-import axios from "axios";
 import { useTranslate } from "@tolgee/react";
-import type { TranslationParams } from "@/types/common.types";
+import axios from "axios";
+
 import { useAppDispatch } from "@/app/";
+import type { TranslationParams } from "@/types/common.types";
 import { Severity } from "@/utils";
+
 import { alertSlice } from "../slice/alert.slice";
 
-export type ApiErrorPayload = {
-  errors: Array<{ code: string; params?: TranslationParams }>;
-};
+export interface ApiErrorPayload {
+  errors: { code: string; params?: TranslationParams }[];
+}
 
 type TFn = ReturnType<typeof useTranslate>["t"];
 
@@ -51,7 +53,7 @@ export function useNotifier(t?: TFn) {
       }
       return translated;
     },
-    [t]
+    [t],
   );
 
   const notify = useCallback(
@@ -63,29 +65,37 @@ export function useNotifier(t?: TFn) {
 
       dispatch(
         alertSlice.actions.showAlerts(
-          unique.map((message) => ({ message, severity }))
-        )
+          unique.map((message) => ({ message, severity })),
+        ),
       );
     },
-    [dispatch, renderMsg]
+    [dispatch, renderMsg],
   );
 
   // --- Funciones de Conveniencia ---
   const success = useCallback(
-    (m: MsgInput | MsgInput[]) => notify(Severity.Success, m),
-    [notify]
+    (m: MsgInput | MsgInput[]) => {
+      notify(Severity.Success, m);
+    },
+    [notify],
   );
   const info = useCallback(
-    (m: MsgInput | MsgInput[]) => notify(Severity.Info, m),
-    [notify]
+    (m: MsgInput | MsgInput[]) => {
+      notify(Severity.Info, m);
+    },
+    [notify],
   );
   const warn = useCallback(
-    (m: MsgInput | MsgInput[]) => notify(Severity.Warning, m),
-    [notify]
+    (m: MsgInput | MsgInput[]) => {
+      notify(Severity.Warning, m);
+    },
+    [notify],
   );
   const error = useCallback(
-    (m: MsgInput | MsgInput[]) => notify(Severity.Error, m),
-    [notify]
+    (m: MsgInput | MsgInput[]) => {
+      notify(Severity.Error, m);
+    },
+    [notify],
   );
 
   // --- Manejador de Errores de API ---
@@ -93,7 +103,7 @@ export function useNotifier(t?: TFn) {
     return (
       err: unknown,
       fallbackKey = "errors.unexpected",
-      fallbackDefault = "Ha ocurrido un error inesperado."
+      fallbackDefault = "Ha ocurrido un error inesperado.",
     ) => {
       // 1. Payload de error de tu API
       if (isApiErrorPayload(err)) {
@@ -101,36 +111,47 @@ export function useNotifier(t?: TFn) {
           key: e.code,
           params: e.params,
         }));
-        return error(
+        error(
           msgs.length
             ? msgs
-            : [{ key: fallbackKey, defaultValue: fallbackDefault }]
+            : [{ key: fallbackKey, defaultValue: fallbackDefault }],
         );
+        return;
       }
 
       // 2. Error de Axios
-      if (axios.isAxiosError(err)) {
-        const data = err.response?.data;
+      if (axios.isAxiosError<unknown>(err)) {
+        const data: unknown = err.response?.data;
         if (isApiErrorPayload(data)) {
           const msgs: MsgInput[] = data.errors.map((e) => ({
             key: e.code,
             params: e.params,
           }));
-          return error(
+          error(
             msgs.length
               ? msgs
-              : [{ key: fallbackKey, defaultValue: fallbackDefault }]
+              : [{ key: fallbackKey, defaultValue: fallbackDefault }],
           );
+          return;
         }
-        if (hasMessage(data)) return error({ key: data.message, raw: true });
+        if (hasMessage(data)) {
+          error({ key: data.message, raw: true });
+          return;
+        }
       }
 
       // 3. String plano o un objeto con `message`
-      if (typeof err === "string") return error({ key: err, raw: true });
-      if (hasMessage(err)) return error({ key: err.message, raw: true });
+      if (typeof err === "string") {
+        error({ key: err, raw: true });
+        return;
+      }
+      if (hasMessage(err)) {
+        error({ key: err.message, raw: true });
+        return;
+      }
 
       // 4. Fallback final
-      return error({ key: fallbackKey, defaultValue: fallbackDefault });
+      error({ key: fallbackKey, defaultValue: fallbackDefault });
     };
   }, [error]);
 

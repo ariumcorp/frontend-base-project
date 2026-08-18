@@ -1,5 +1,7 @@
-import { LanguageCode, Slice } from "@/utils";
 import { createSlice, type PayloadAction } from "@reduxjs/toolkit";
+
+import { LanguageCode, Slice } from "@/utils";
+
 import { initialStateLanguage } from "../models/language.model";
 
 const languageSlice = createSlice({

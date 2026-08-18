@@ -1,5 +1,7 @@
-import { Slice } from "@/utils";
 import { createSlice } from "@reduxjs/toolkit";
+
+import { Slice } from "@/utils";
+
 import { initialStateLoading } from "../models/loading.model";
 
 export const loadingSlice = createSlice({

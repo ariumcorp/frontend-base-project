@@ -1,10 +1,11 @@
-import { Severity } from "@/utils";
 import { z } from "zod";
+
+import { Severity } from "@/utils";
 
 const alertItemSchema = z.object({
   id: z.string(),
   show: z.boolean().optional(),
-  severity: z.nativeEnum(Severity),
+  severity: z.enum(Severity),
   message: z.string(),
   duration: z.number().optional(),
 });

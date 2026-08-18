@@ -1,12 +1,15 @@
 import { describe, expect, it } from "vitest";
+
 import { ThemeCode } from "@/utils";
-import themeReducer, { toggleTheme } from "./theme.slice";
+
 import { initialStateTheme } from "../models/theme.model";
+
+import themeReducer, { toggleTheme } from "./theme.slice";
 
 describe("themeSlice", () => {
   it("returns the initial state", () => {
     expect(themeReducer(undefined, { type: "@@INIT" })).toEqual(
-      initialStateTheme
+      initialStateTheme,
     );
   });
 

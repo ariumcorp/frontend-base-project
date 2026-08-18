@@ -1,5 +1,6 @@
-import { ThemeCode } from "@/utils";
 import { z } from "zod";
+
+import { ThemeCode } from "@/utils";
 
 export const themeSchema = z.object({
   mode: z.enum(ThemeCode),

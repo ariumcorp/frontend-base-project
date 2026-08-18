@@ -1,4 +1,4 @@
-import { Tolgee, FormatSimple } from "@tolgee/react";
+import { FormatSimple, Tolgee } from "@tolgee/react";
 
 // const loadTranslations = async (language: string) => {
 //   const response = await fetch(`/api/translations/${language}.json`);

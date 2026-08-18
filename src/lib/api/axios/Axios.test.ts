@@ -1,9 +1,11 @@
-import { configureStore, combineReducers } from "@reduxjs/toolkit";
-import MockAdapter from "axios-mock-adapter";
+import { combineReducers, configureStore } from "@reduxjs/toolkit";
 import axios from "axios";
-import { beforeEach, afterEach, describe, expect, it } from "vitest";
-import authReducer from "@/features/auth/slice/auth.slice";
+import MockAdapter from "axios-mock-adapter";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+
 import type { ReduxStore } from "@/app/index";
+import authReducer from "@/features/auth/slice/auth.slice";
+
 import axiosInstance, { axiosAttachInterceptors } from "./Axios";
 
 function createTestStore(preloadedState?: {

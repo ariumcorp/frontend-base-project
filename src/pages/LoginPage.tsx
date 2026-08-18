@@ -1,6 +1,7 @@
 import React from "react";
-import { Container, Box, Typography } from "@mui/material";
+import { Box, Container, Typography } from "@mui/material";
 import { useTranslate } from "@tolgee/react";
+
 import { LoginForm, useLogin } from "@/features/auth/";
 
 const LoginPage: React.FC = () => {

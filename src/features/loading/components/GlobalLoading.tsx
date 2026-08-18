@@ -1,5 +1,6 @@
-import { useAppSelector } from "@/app/";
 import { Backdrop, CircularProgress, Typography } from "@mui/material";
+
+import { useAppSelector } from "@/app/";
 
 export const GlobalLoading = () => {
   const { open, message } = useAppSelector((state) => state.loadingSlice);

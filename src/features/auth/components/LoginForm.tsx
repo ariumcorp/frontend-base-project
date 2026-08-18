@@ -1,6 +1,7 @@
+import React, { useState } from "react";
 import { Box, Button, CircularProgress, TextField } from "@mui/material";
 import { useTranslate } from "@tolgee/react";
-import React, { useState } from "react";
+
 import type { LoginRequest } from "../models/auth.model";
 
 interface LoginFormProps {
@@ -18,7 +19,7 @@ export const LoginForm: React.FC<LoginFormProps> = ({
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    onSubmit({ username, password });
+    void onSubmit({ username, password });
   };
 
   return (
@@ -32,7 +33,9 @@ export const LoginForm: React.FC<LoginFormProps> = ({
         label={t("login.field.code", "Código de Usuario")}
         autoComplete="username"
         value={username}
-        onChange={(e) => setUsername(e.target.value)}
+        onChange={(e) => {
+          setUsername(e.target.value);
+        }}
       />
       <TextField
         margin="normal"
@@ -44,7 +47,9 @@ export const LoginForm: React.FC<LoginFormProps> = ({
         type="password"
         autoComplete="current-password"
         value={password}
-        onChange={(e) => setPassword(e.target.value)}
+        onChange={(e) => {
+          setPassword(e.target.value);
+        }}
       />
       <Button
         type="submit"

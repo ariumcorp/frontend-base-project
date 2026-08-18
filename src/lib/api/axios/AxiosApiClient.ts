@@ -1,5 +1,7 @@
 import type { ReduxStore } from "@/app/index";
+
 import { type ApiClient } from "../ApiClient";
+
 import axiosInstance, { axiosAttachInterceptors } from "./Axios";
 
 export class AxiosApiClient implements ApiClient {

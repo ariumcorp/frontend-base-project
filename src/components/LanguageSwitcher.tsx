@@ -1,11 +1,12 @@
-import { useTolgee } from "@tolgee/react";
 import { Button, ButtonGroup } from "@mui/material";
+import { useTolgee } from "@tolgee/react";
+
 import { useAppSelector } from "@/app/"; // <-- Importa el hook de Redux
 
 export const LanguageSwitcher = () => {
   const { getLanguage, changeLanguage } = useTolgee();
   const availableLanguages = useAppSelector(
-    (state) => state.languageSlice.available
+    (state) => state.languageSlice.available,
   );
   const currentLanguage = getLanguage();
 

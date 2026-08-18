@@ -1,10 +1,13 @@
 import type { PropsWithChildren } from "react";
-import { configureStore, combineReducers } from "@reduxjs/toolkit";
 import { Provider } from "react-redux";
-import { renderHook, act } from "@testing-library/react";
+import { combineReducers, configureStore } from "@reduxjs/toolkit";
+import { act, renderHook } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
+
 import { Severity } from "@/utils";
+
 import { alertSlice } from "../slice/alert.slice";
+
 import { useNotifier } from "./useNotifier";
 
 function createTestStore() {
@@ -65,6 +68,6 @@ describe("useNotifier", () => {
 
     const { queue } = store.getState().alertSlice;
     expect(queue).toHaveLength(1);
-    expect(queue[0].severity).toBe(Severity.Error);
+    expect(queue[0]?.severity).toBe(Severity.Error);
   });
 });

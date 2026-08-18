@@ -1,7 +1,9 @@
+import { createSlice, type PayloadAction } from "@reduxjs/toolkit";
+
 import type { ReduxState } from "@/app/";
 import { Slice } from "@/utils";
-import { createSlice, type PayloadAction } from "@reduxjs/toolkit";
-import { initialStateAuth, type Auth } from "../models/auth.model";
+
+import { type Auth, initialStateAuth } from "../models/auth.model";
 
 const authSlice = createSlice({
   name: Slice.Auth,
