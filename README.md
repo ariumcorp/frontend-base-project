@@ -43,21 +43,23 @@ Esto funciona porque la configuración de ambiente (`VITE_URL_BACKEND`, etc.) **
 
 **Importante para quien añada una variable de entorno nueva**: si se necesita en runtime (no solo en build-time), debe leerse vía `getEnv("VITE_...")`, nunca con `import.meta.env.VITE_...` directo — de lo contrario quedaría fija en el bundle compilado y el build-once dejaría de servir para esa variable.
 
-### Pipeline (`.github/workflows/docker-publish.yml`)
+### Pipeline (`.github/workflows/ci.yml`)
 
-**No se dispara directamente por push.** Está encadenado al workflow `CI` (`.github/workflows/ci.yml`) vía `workflow_run`: solo arranca cuando `CI` **terminó**, y además valida que haya terminado con `conclusion == 'success'` y que el push (no un PR) haya sido a `main`/`qa`/`dev`. Así nunca se construye ni publica una imagen de un commit que no pasó lint/test/build/format — antes ambos workflows corrían en paralelo y Docker podía publicar aunque CI fallara.
+Un solo workflow con dos jobs encadenados por `needs:`:
 
-Aplica el patrón "build once":
+1. **`quality`**: commitlint (título del PR), format check, lint, test, build
+2. **`build-scan-push`**: solo corre si `quality` pasó (`needs: quality`, más la condición `needs.quality.result == 'success'`) y el evento fue un `push` real (no un PR) — construye, escanea y publica la imagen Docker
 
-- Hace checkout del commit exacto que `CI` validó (`github.event.workflow_run.head_sha`), no del HEAD actual de la rama
+Ambos jobs viven en el **mismo archivo** a propósito. La alternativa obvia — dos workflows separados, uno disparando al otro vía `workflow_run` — tiene una limitación real de GitHub Actions: ese trigger **solo se registra si el archivo que lo declara existe en la rama por defecto del repo** (`main`), sin importar en qué rama corrió el workflow que lo precede. Con un flujo `feature → dev → qa → main`, eso significa que el build de Docker **no se dispararía en absoluto para `dev` ni `qa`** hasta el primer merge a `main` — rompiendo justo el caso de uso principal (generar imagen en cada push a `dev`). Con `needs:` dentro del mismo workflow, en cambio, funciona desde el primer push a cualquier rama, sin depender de qué haya en `main`.
+
+El job `build-scan-push` aplica el patrón "build once":
+
 - Calcula un **hash del contenido relevante al build** (no del commit) — si dos commits distintos tienen los mismos archivos (ej. un merge sin cambios), el hash es idéntico
 - Si ya existe una imagen para ese hash, **no recompila**: solo la promueve al tag de la rama (`docker buildx imagetools create`, un retag a nivel de registry, sin rebuild)
 - Si es contenido nuevo: build → auditoría de dependencias → escaneo de vulnerabilidades (Trivy) → push con SBOM/provenance → firma (Cosign, atada al digest — se hereda en cada promoción sin re-firmar)
 - Guard adicional: si el contenido es nuevo pero la versión de `package.json` ya fue usada por otro contenido, falla explícitamente en vez de sobrescribir el tag en silencio
 
 La imagen se publica en Docker Hub como `ariumdev/frontend-base-project` (tags: `sha-<hash>`, versión de `package.json`, nombre de rama, y `latest` solo desde `main`). Requiere el secret `DOCKER_HUB_TOKEN` configurado en el repo.
-
-**Nota sobre `workflow_run`**: GitHub lee la definición de este trigger desde la rama por defecto del repo (`main`), no desde la rama que dispara el push. Hasta que este archivo llegue a `main`, un push a `dev`/`qa` no encadenará correctamente — es una limitación de GitHub Actions, no un error de configuración.
 
 ## Arquitectura
 
@@ -114,7 +116,7 @@ El proyecto usa Husky con tres hooks:
 
 Si un hook falla, corrige lo que reporta antes de reintentar (`git commit`/`git push`). No se recomienda saltarlos con `--no-verify` salvo un caso excepcional acordado con el equipo.
 
-El audit de `pre-push` solo bloquea el push si hay vulnerabilidades **alta o crítica** (moderadas/bajas solo generan una advertencia) — misma política que el gate de `docker-publish.yml` en CI. Es condicional a que `package.json`/`yarn.lock` cambien porque auditar contra una base de datos de CVEs que cambia con el tiempo no debería bloquear un commit/push que no toca dependencias.
+El audit de `pre-push` solo bloquea el push si hay vulnerabilidades **alta o crítica** (moderadas/bajas solo generan una advertencia) — misma política que el gate del job `build-scan-push` en `ci.yml`. Es condicional a que `package.json`/`yarn.lock` cambien porque auditar contra una base de datos de CVEs que cambia con el tiempo no debería bloquear un commit/push que no toca dependencias.
 
 ### Mensajes de commit (Conventional Commits)
 
@@ -145,7 +147,7 @@ Esta plantilla se actualizó tomando como referencia un proyecto hermano más ma
 - **ESLint**: config con `strictTypeChecked` + `stylisticTypeChecked` (type-aware), `eslint-plugin-react`, `jsx-a11y`, orden de imports automático (`simple-import-sort`), `unused-imports`, y reglas específicas de Vitest/Testing Library para archivos `*.test.*`. Es la config más estricta disponible en `typescript-eslint`; si se vuelve demasiado ruidosa para nuevas features, la alternativa más relajada es `recommendedTypeChecked` (sin las reglas puramente de estilo).
 - **`tsconfig.app.json` / `tsconfig.node.json`**: `noUncheckedIndexedAccess: true` (accesos a arrays/objetos por índice devuelven `T | undefined`) y `composite: true` (requisito formal de `tsc -b` con project references).
 - **Prettier + Husky + lint-staged + commitlint**: ver sección [Git hooks](#git-hooks) arriba.
-- **CI** ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)): gates de `commitlint` (sobre el título del PR, no cada commit — se usa squash merge), `format:check`, `lint`, `test:run` y `build` en cada PR/push a `main`/`qa`/`dev`. `docker-publish.yml` está encadenado a que este workflow termine exitosamente.
+- **CI** ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)): un único workflow con dos jobs — `quality` (`commitlint` sobre el título del PR, `format:check`, `lint`, `test:run`, `build`) y `build-scan-push` (Docker), encadenados con `needs:` para que el build de Docker solo corra si `quality` pasó. Ver sección [Docker: build once, deploy many](#docker-build-once-deploy-many) para el porqué de un solo archivo en vez de dos workflows separados.
 - **Convención de features**: se unificó `models/` (plural) en todos los features — existía una carpeta `access/model` (singular) que se renombró para no repetir esa inconsistencia.
 
 Si algo de esto genera fricción real en el día a día (por ejemplo, `tsc -b` en el pre-commit se siente lento, o `strictTypeChecked` es muy ruidoso para cierto tipo de código), es válido relajarlo — pero hacerlo de forma consciente y documentada aquí, no revirtiéndolo en silencio.
