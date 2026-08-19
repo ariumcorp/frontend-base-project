@@ -2,6 +2,11 @@ name: CI
 
 on:
   pull_request:
+    # 'edited' es necesario para que renombrar el título del PR dispare un
+    # run nuevo — sin esto, github.event.pull_request.title queda congelado
+    # con el valor del momento en que se abrió/actualizó el PR por última vez,
+    # y ni siquiera "Re-run jobs" lo refresca (reusa el mismo payload).
+    types: [opened, synchronize, reopened, edited]
     branches: [main, qa, dev]
   push:
     branches: [main, qa, dev]
@@ -34,14 +39,21 @@ jobs:
           PR_TITLE: ${{ github.event.pull_request.title }}
         run: echo "$PR_TITLE" | npx commitlint
 
+      # Los pasos de código (format/lint/test/build) no aportan nada cuando el
+      # evento fue solo "edited" (título/descripción del PR) sin push nuevo —
+      # se saltan para no gastar minutos de CI en algo que no cambió código.
       - name: Format check
+        if: github.event.action != 'edited'
         run: yarn format:check
 
       - name: Lint
+        if: github.event.action != 'edited'
         run: yarn lint
 
       - name: Test
+        if: github.event.action != 'edited'
         run: yarn test:run
 
       - name: Build
+        if: github.event.action != 'edited'
         run: yarn build

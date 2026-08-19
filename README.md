@@ -133,6 +133,8 @@ fix(alerts): evitar duplicados en el snackbar
 - En CI, el paso `Lint del título del PR` en `ci.yml` valida `github.event.pull_request.title`, no el rango de commits del PR
 - Los commits dentro del PR pueden ser informales ("wip", "fix typo") — de todas formas se descartan al mergear; el hook local `commit-msg` sigue siendo una buena práctica pero no es lo que se valida en CI
 
+**Si falla el lint del título**: edítalo y espera a que CI corra de nuevo automáticamente (el trigger incluye `edited`, así que renombrar el título sí dispara un run nuevo con el título actualizado). Si no ves un run nuevo, dale un momento — GitHub a veces tarda unos segundos en encolarlo. **"Re-run jobs" sobre un run viejo no sirve**: reutiliza el payload congelado del evento original, con el título de ese momento, no el actual.
+
 ## Historial de modernización
 
 Esta plantilla se actualizó tomando como referencia un proyecto hermano más maduro (`admin-center`) con el mismo stack. Resumen de lo agregado, para que quien retome el proyecto entienda el porqué de ciertas decisiones:
