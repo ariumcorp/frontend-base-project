@@ -127,6 +127,12 @@ feat(auth): agregar refresh-token con cola de reintentos
 fix(alerts): evitar duplicados en el snackbar
 ```
 
+**Los PRs a `main`/`qa`/`dev` se mergean con squash merge** — GitHub colapsa todos los commits del PR en uno solo, usando el **título del PR** como mensaje final. Por eso:
+
+- El **título del PR**, no cada commit individual, es lo que debe seguir Conventional Commits (ej. `feat: agregar refresh-token con cola de reintentos`)
+- En CI, el paso `Lint del título del PR` en `ci.yml` valida `github.event.pull_request.title`, no el rango de commits del PR
+- Los commits dentro del PR pueden ser informales ("wip", "fix typo") — de todas formas se descartan al mergear; el hook local `commit-msg` sigue siendo una buena práctica pero no es lo que se valida en CI
+
 ## Historial de modernización
 
 Esta plantilla se actualizó tomando como referencia un proyecto hermano más maduro (`admin-center`) con el mismo stack. Resumen de lo agregado, para que quien retome el proyecto entienda el porqué de ciertas decisiones:
@@ -137,7 +143,7 @@ Esta plantilla se actualizó tomando como referencia un proyecto hermano más ma
 - **ESLint**: config con `strictTypeChecked` + `stylisticTypeChecked` (type-aware), `eslint-plugin-react`, `jsx-a11y`, orden de imports automático (`simple-import-sort`), `unused-imports`, y reglas específicas de Vitest/Testing Library para archivos `*.test.*`. Es la config más estricta disponible en `typescript-eslint`; si se vuelve demasiado ruidosa para nuevas features, la alternativa más relajada es `recommendedTypeChecked` (sin las reglas puramente de estilo).
 - **`tsconfig.app.json` / `tsconfig.node.json`**: `noUncheckedIndexedAccess: true` (accesos a arrays/objetos por índice devuelven `T | undefined`) y `composite: true` (requisito formal de `tsc -b` con project references).
 - **Prettier + Husky + lint-staged + commitlint**: ver sección [Git hooks](#git-hooks) arriba.
-- **CI** ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)): gates de `commitlint`, `format:check`, `lint`, `test:run` y `build` en cada PR/push a `main`/`dev`.
+- **CI** ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)): gates de `commitlint` (sobre el título del PR, no cada commit — se usa squash merge), `format:check`, `lint`, `test:run` y `build` en cada PR/push a `main`/`qa`/`dev`. `docker-publish.yml` está encadenado a que este workflow termine exitosamente.
 - **Convención de features**: se unificó `models/` (plural) en todos los features — existía una carpeta `access/model` (singular) que se renombró para no repetir esa inconsistencia.
 
 Si algo de esto genera fricción real en el día a día (por ejemplo, `tsc -b` en el pre-commit se siente lento, o `strictTypeChecked` es muy ruidoso para cierto tipo de código), es válido relajarlo — pero hacerlo de forma consciente y documentada aquí, no revirtiéndolo en silencio.

@@ -24,9 +24,15 @@ jobs:
       - name: Install dependencies
         run: yarn install --frozen-lockfile
 
-      - name: Lint commit messages
+      # Se usa squash merge: el único mensaje que sobrevive en el historial de
+      # main/qa/dev es el título del PR (GitHub lo usa como mensaje del commit
+      # squasheado), así que es lo único que tiene sentido validar — no los
+      # commits individuales del PR, que se descartan al mergear.
+      - name: Lint del título del PR (Conventional Commits)
         if: github.event_name == 'pull_request'
-        run: npx commitlint --from ${{ github.event.pull_request.base.sha }} --to ${{ github.event.pull_request.head.sha }}
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: echo "$PR_TITLE" | npx commitlint
 
       - name: Format check
         run: yarn format:check
