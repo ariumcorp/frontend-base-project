@@ -1,0 +1,7 @@
+dist
+coverage
+android
+ios
+src-tauri
+node_modules
+yarn.lock
